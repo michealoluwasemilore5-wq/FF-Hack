@@ -22,6 +22,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          ndk-version: 26.0.10792818
+          accept-android-sdk-licenses: true
 
       - name: Build APK
         run: ./gradlew assembleDebug
