@@ -54,6 +54,7 @@ jobs:
         run: |
           set -e
           test -f ./gradlew
+          test -f ./gradle/wrapper/gradle-wrapper.properties
           test -f ./gradle/wrapper/gradle-wrapper.jar
           chmod +x ./gradlew
           ./gradlew --version
