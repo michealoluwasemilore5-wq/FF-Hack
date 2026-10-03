@@ -32,6 +32,7 @@ jobs:
       - name: Install Android SDK packages
         shell: bash
         run: |
+          set -e
           mkdir -p "$ANDROID_HOME/cmdline-tools"
           if [ ! -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
             cd "$ANDROID_HOME/cmdline-tools"
@@ -51,8 +52,11 @@ jobs:
       - name: Verify Gradle wrapper
         shell: bash
         run: |
+          set -e
           test -f ./gradlew
+          test -f ./gradle/wrapper/gradle-wrapper.jar
           chmod +x ./gradlew
+          ./gradlew --version
 
       - name: Build APK
         shell: bash
