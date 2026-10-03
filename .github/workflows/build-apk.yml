@@ -12,11 +12,12 @@ jobs:
 
     env:
       JAVA_VERSION: "17"
-      ANDROID_API_LEVEL: "35"
-      ANDROID_BUILD_TOOLS: "35.0.0"
+      ANDROID_API_LEVEL: "34"
+      ANDROID_BUILD_TOOLS: "34.0.0"
       ANDROID_NDK_VERSION: "26.0.10792818"
       ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
       ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
     steps:
       - name: Checkout
@@ -27,11 +28,6 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.10.2"
 
       - name: Install Android SDK packages
         shell: bash
@@ -52,9 +48,15 @@ jobs:
             "build-tools;${ANDROID_BUILD_TOOLS}" \
             "ndk;${ANDROID_NDK_VERSION}"
 
+      - name: Verify Gradle wrapper
+        shell: bash
+        run: |
+          test -f ./gradlew
+          chmod +x ./gradlew
+
       - name: Build APK
         shell: bash
-        run: gradle --no-daemon assembleDebug
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
