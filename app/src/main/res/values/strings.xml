@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Touch Sensitivity Overlay</string>
+    <string name="accessibility_description">Provides a movable touch control that transforms drag movement according to the selected sensitivity.</string>
+</resources>

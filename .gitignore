@@ -1,0 +1,8 @@
+# Gradle
+.gradle/
+**/build/
+local.properties
+
+# Keep the Gradle wrapper files in source control
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties

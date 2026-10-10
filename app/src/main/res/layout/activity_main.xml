@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <LinearLayout
+        android:orientation="vertical" android:padding="24dp"
+        android:layout_width="match_parent" android:layout_height="wrap_content">
+        <TextView android:text="Touch Sensitivity Overlay" android:textSize="28sp"
+            android:textStyle="bold" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <TextView android:text="Adjust the movement produced by the floating touch control."
+            android:layout_marginTop="8dp" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+
+        <Button android:id="@+id/permissionButton" android:text="1. Open overlay permission"
+            android:layout_marginTop="24dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <Button android:id="@+id/accessibilityButton" android:text="2. Open Accessibility settings"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <Button android:id="@+id/enableButton" android:text="Enable floating control"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+
+        <TextView android:id="@+id/status" android:text="Status: checking permissions..."
+            android:layout_marginTop="16dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+
+        <TextView android:text="Sensitivity" android:textStyle="bold"
+            android:layout_marginTop="28dp" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <SeekBar android:id="@+id/sensitivity" android:max="275" android:progress="75"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:id="@+id/sensitivityValue" android:text="1.00×"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+
+        <TextView android:text="Circle size" android:textStyle="bold"
+            android:layout_marginTop="20dp" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <SeekBar android:id="@+id/size" android:max="120" android:progress="32"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:id="@+id/sizeValue" android:text="72 px"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+
+        <Button android:id="@+id/stopButton" android:text="Disable floating control"
+            android:layout_marginTop="24dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+    </LinearLayout>
+</ScrollView>
