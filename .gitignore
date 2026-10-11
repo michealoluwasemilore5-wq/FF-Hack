@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+app/build/
+
+# Android
+local.properties
+*.iml
+.idea/
+.vscode/
+*.keystore
+*.jks
+
+# Native / C++
+*.o
+*.a
+*.so
+*.obj
+
+# OS
+.DS_Store
+Thumbs.db
