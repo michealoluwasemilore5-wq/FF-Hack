@@ -1,26 +1,21 @@
 workflows:
-  ffhack-android-debug:
-    name: FFHack Android Debug Build
-    max_build_duration: 30
+  android-workflow:
+    name: Build FF ESP
+    instance_type: linux_x2
+    max_build_duration: 60
     environment:
-      vars:
-        GRADLE_OPTS: -Xmx4g -Dorg.gradle.daemon=false
-        JAVA_VERSION: "17"
+      java: 17
     scripts:
       - name: Install Android SDK components
         script: |
-          echo "Installing Android SDK components..."
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-34" \
-            "build-tools;34.0.0" \
-            "cmake;3.22.1" \
-            "ndk;25.2.9519653"
-
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653" "cmake;3.22.1"
+      - name: Generate Gradle wrapper
+        script: gradle wrapper --gradle-version 8.2
       - name: Build debug APK
-        script: |
-          ./gradlew assembleDebug --no-daemon --stacktrace
-
+        script: ./gradlew assembleDebug --no-daemon
     artifacts:
       - app/build/outputs/apk/debug/*.apk
+    publishing:
+      email:
+        recipients:
+          - your@email.com
