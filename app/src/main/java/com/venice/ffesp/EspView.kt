@@ -35,7 +35,6 @@ class EspView(context: Context) : View(context) {
         mm = raf.channel.map(FileChannel.MapMode.READ_WRITE, 0, SHM_SIZE.toLong())
         mm.order(ByteOrder.LITTLE_ENDIAN)
 
-        // spawn root helper; it mmaps the same file
         val helper = context.applicationInfo.nativeLibraryDir + "/libmemhelper.so"
         try {
             Runtime.getRuntime().exec(arrayOf("su", "-c", "$helper ${f.absolutePath}"))
