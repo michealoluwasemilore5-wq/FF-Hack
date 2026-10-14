@@ -58,14 +58,14 @@ class EspView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val count = mm.getInt(0).coerceIn(0, 64)
-        var off = 16
+        var off = HEADER
         for (i in 0 until count) {
             val x = mm.getFloat(off)
             val y = mm.getFloat(off + 4)
             val dist = mm.getFloat(off + 12)
             val hp = mm.getInt(off + 16)
             val valid = mm.getInt(off + 20)
-            off += 32
+            off += STRIDE
             if (valid == 0) continue
 
             val h = (2000f / (dist + 1f)).coerceIn(60f, 400f)
@@ -75,5 +75,9 @@ class EspView(context: Context) : View(context) {
         }
     }
 
-    companion object { const val SHM_SIZE = 16 + 64 * 32 }
+    companion object {
+        const val HEADER = 20
+        const val STRIDE = 24
+        const val SHM_SIZE = HEADER + 64 * STRIDE
+    }
 }
