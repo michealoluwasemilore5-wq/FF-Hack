@@ -7,16 +7,26 @@
 #include <dirent.h>
 #include <sys/mman.h>
 #include <sys/uio.h>
+#include <android/log.h>
+
+#define LOG(...) __android_log_print(ANDROID_LOG_INFO, "FFESP", __VA_ARGS__)
 
 struct EspEntry { float x, y, headY, dist; int hp, valid; };
-struct EspData  {
-    volatile int count;
-    volatile float aimDx, aimDy;
-    int pad[2];
-    EspEntry e[64];
+struct EspData {
+    volatile int count;         // 0
+    volatile int magic;         // 4
+    volatile float aimDx;       // 8
+    volatile float aimDy;       // 12
+    volatile int resolved;      // 16
+    EspEntry e[64];             // 20 .. 1556
+    volatile unsigned dbgBase;  // 1556
+    volatile unsigned dbgMgr;   // 1560
+    volatile unsigned dbgLocal; // 1564
+    volatile int dbgN;          // 1568
+    volatile int dbgOut;        // 1572
 };
 
-static int      g_pid = -1;
+static int g_pid = -1;
 static EspData* g_out;
 
 static bool rd(uintptr_t a, void* o, size_t n) {
@@ -36,7 +46,6 @@ static int findPid(const char* pkg) {
     }
     closedir(d); return -1;
 }
-
 static uintptr_t libBase(int pid, const char* lib) {
     char p[64]; snprintf(p, 64, "/proc/%d/maps", pid);
     FILE* f = fopen(p, "r"); char ln[512];
@@ -44,10 +53,8 @@ static uintptr_t libBase(int pid, const char* lib) {
         if (strstr(ln, lib)) { uintptr_t b = strtoull(ln, 0, 16); fclose(f); return b; }
     fclose(f); return 0;
 }
-
 struct Mat4 { float m[16]; };
-static bool w2s(const Mat4& vp, float x, float y, float z, int sw, int sh,
-                float& sx, float& sy) {
+static bool w2s(const Mat4& vp, float x, float y, float z, int sw, int sh, float& sx, float& sy) {
     float cx = vp.m[0]*x + vp.m[4]*y + vp.m[8]*z + vp.m[12];
     float cy = vp.m[1]*x + vp.m[5]*y + vp.m[9]*z + vp.m[13];
     float cw = vp.m[3]*x + vp.m[7]*y + vp.m[11]*z + vp.m[15];
@@ -57,35 +64,36 @@ static bool w2s(const Mat4& vp, float x, float y, float z, int sw, int sh,
     return true;
 }
 
-// ============ OFFSETS (fill from Il2CppDumper — see notes) ============
-static const uintptr_t O_LIB_BASE_PTR = 0x000000;
-static const uintptr_t O_PLAYER_LIST  = 0x00;
-static const uintptr_t O_PLAYER_COUNT = 0x00;
-static const uintptr_t O_LOCAL_PLAYER = 0x00;
-static const uintptr_t O_POS          = 0x00;
-static const uintptr_t O_HEAD_BONE    = 0x00;
-static const uintptr_t O_HEALTH       = 0x00;
-static const uintptr_t O_TEAM         = 0x00;
-static const uintptr_t O_CAMERA_MAT   = 0x00;
-// ======================================================================
+// ===== GUESSED OFFSETS (verify via on-screen debug) =====
+static const uintptr_t O_LIB_BASE_PTR = 0x1C0A2B0;
+static const uintptr_t O_PLAYER_LIST  = 0x18;
+static const uintptr_t O_PLAYER_COUNT = 0x1C;
+static const uintptr_t O_LOCAL_PLAYER = 0x10;
+static const uintptr_t O_POS          = 0x64;
+static const uintptr_t O_HEAD_BONE    = 0x50;
+static const uintptr_t O_HEALTH       = 0x9C;
+static const uintptr_t O_TEAM         = 0x7C;
+static const uintptr_t O_CAMERA_MAT   = 0x30;
+// =======================================================
 
 int main(int argc, char** argv) {
     if (argc < 2) return 1;
     const char* shmPath = argv[1];
-    const char* pkg = "com.dts.freefireth"; // MAX: com.dts.freefiremax
+    const char* pkg = "com.dts.freefiremax"; // Free Fire: com.dts.freefireth
 
     int fd = open(shmPath, O_RDWR);
-    g_out = (EspData*)mmap(nullptr, sizeof(EspData),
-                           PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    g_out = (EspData*)mmap(nullptr, sizeof(EspData), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    int sw = 720, sh = 1600; // Hot 12i resolution
 
-    int sw = 1920, sh = 1080; // set to device resolution
-
+    int tick = 0;
     for (;;) {
         if (g_pid <= 0 || !libBase(g_pid, "libil2cpp.so")) {
+            g_out->magic = 0;
             g_pid = findPid(pkg);
             usleep(300000);
             continue;
         }
+        g_out->magic = 0x1234;
         uintptr_t base = libBase(g_pid, "libil2cpp.so");
 
         uintptr_t mgr   = R<uintptr_t>(base + O_LIB_BASE_PTR);
@@ -96,9 +104,11 @@ int main(int argc, char** argv) {
         uintptr_t local = R<uintptr_t>(mgr + O_LOCAL_PLAYER);
         int myTeam      = R<int>(local + O_TEAM);
 
+        g_out->resolved = (n > 0 && n < 200 && local != 0) ? 1 : 0;
+
         int out = 0; float best = 1e9f, bdx = 0, bdy = 0;
         for (int i = 0; i < n && out < 64; i++) {
-            uintptr_t p = R<uintptr_t>(list + i * 8);
+            uintptr_t p = R<uintptr_t>(list + i * 4);   // 4 bytes on 32-bit
             if (!p || p == local) continue;
             int team = R<int>(p + O_TEAM);
             int hp   = R<int>(p + O_HEALTH);
@@ -124,6 +134,17 @@ int main(int argc, char** argv) {
         g_out->count = out;
         g_out->aimDx = bdx;
         g_out->aimDy = bdy;
+
+        // --- on-screen debug values ---
+        g_out->dbgBase  = (unsigned)base;
+        g_out->dbgMgr   = (unsigned)mgr;
+        g_out->dbgLocal = (unsigned)local;
+        g_out->dbgN     = n;
+        g_out->dbgOut   = out;
+
+        if (++tick % 180 == 0)
+            LOG("base=%p mgr=%p n=%d local=%p out=%d", (void*)base, (void*)mgr, n, (void*)local, out);
+
         usleep(8000);
     }
 }
