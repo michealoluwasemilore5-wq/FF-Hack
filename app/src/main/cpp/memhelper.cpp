@@ -24,6 +24,7 @@ struct EspData {
     volatile unsigned dbgLocal; // 1564
     volatile int dbgN;          // 1568
     volatile int dbgOut;        // 1572
+    volatile int dbgPid;        // 1576
 };
 
 static int g_pid = -1;
@@ -35,20 +36,27 @@ static bool rd(uintptr_t a, void* o, size_t n) {
 }
 template<class T> static T R(uintptr_t a) { T v{}; rd(a, &v, sizeof(T)); return v; }
 
-static int findPid(const char* pkg) {
-    DIR* d = opendir("/proc"); dirent* e;
-    while ((e = readdir(d))) {
-        int pid = atoi(e->d_name); if (!pid) continue;
-        char p[64]; snprintf(p, 64, "/proc/%d/cmdline", pid);
-        int fd = open(p, O_RDONLY); if (fd < 0) continue;
-        char b[256] = {0}; read(fd, b, 255); close(fd);
-        if (strstr(b, pkg)) { closedir(d); return pid; }
+// try both Free Fire packages
+static const char* PKGS[] = { "com.dts.freefiremax", "com.dts.freefireth" };
+
+static int findPid() {
+    for (const char* pkg : PKGS) {
+        DIR* d = opendir("/proc"); if (!d) continue; dirent* e;
+        while ((e = readdir(d))) {
+            int pid = atoi(e->d_name); if (!pid) continue;
+            char p[64]; snprintf(p, 64, "/proc/%d/cmdline", pid);
+            int fd = open(p, O_RDONLY); if (fd < 0) continue;
+            char b[256] = {0}; read(fd, b, 255); close(fd);
+            if (strstr(b, pkg)) { closedir(d); return pid; }
+        }
+        closedir(d);
     }
-    closedir(d); return -1;
+    return -1;
 }
 static uintptr_t libBase(int pid, const char* lib) {
     char p[64]; snprintf(p, 64, "/proc/%d/maps", pid);
-    FILE* f = fopen(p, "r"); char ln[512];
+    FILE* f = fopen(p, "r"); if (!f) return 0;
+    char ln[512];
     while (fgets(ln, 512, f))
         if (strstr(ln, lib)) { uintptr_t b = strtoull(ln, 0, 16); fclose(f); return b; }
     fclose(f); return 0;
@@ -64,7 +72,7 @@ static bool w2s(const Mat4& vp, float x, float y, float z, int sw, int sh, float
     return true;
 }
 
-// ===== GUESSED OFFSETS (verify via on-screen debug) =====
+// ===== GUESSED OFFSETS =====
 static const uintptr_t O_LIB_BASE_PTR = 0x1C0A2B0;
 static const uintptr_t O_PLAYER_LIST  = 0x18;
 static const uintptr_t O_PLAYER_COUNT = 0x1C;
@@ -74,27 +82,30 @@ static const uintptr_t O_HEAD_BONE    = 0x50;
 static const uintptr_t O_HEALTH       = 0x9C;
 static const uintptr_t O_TEAM         = 0x7C;
 static const uintptr_t O_CAMERA_MAT   = 0x30;
-// =======================================================
+// ==========================
 
 int main(int argc, char** argv) {
     if (argc < 2) return 1;
     const char* shmPath = argv[1];
-    const char* pkg = "com.dts.freefiremax"; // Free Fire: com.dts.freefireth
 
     int fd = open(shmPath, O_RDWR);
+    if (fd < 0) return 2;
     g_out = (EspData*)mmap(nullptr, sizeof(EspData), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-    int sw = 720, sh = 1600; // Hot 12i resolution
+    if (g_out == MAP_FAILED) return 3;
 
-    int tick = 0;
+    g_out->magic = 0xAAAA;   // stage 1: helper is running
+
     for (;;) {
-        if (g_pid <= 0 || !libBase(g_pid, "libil2cpp.so")) {
-            g_out->magic = 0;
-            g_pid = findPid(pkg);
-            usleep(300000);
-            continue;
+        if (g_pid <= 0) {
+            g_pid = findPid();
+            if (g_pid <= 0) { usleep(300000); continue; }
+            g_out->magic = 0xBBBB;  // stage 2: game found
+            g_out->dbgPid = g_pid;
         }
-        g_out->magic = 0x1234;
+
         uintptr_t base = libBase(g_pid, "libil2cpp.so");
+        if (!base) { usleep(300000); continue; }
+        g_out->magic = 0x1234;      // stage 3: everything found
 
         uintptr_t mgr   = R<uintptr_t>(base + O_LIB_BASE_PTR);
         uintptr_t cam   = R<uintptr_t>(mgr + O_CAMERA_MAT);
@@ -108,7 +119,7 @@ int main(int argc, char** argv) {
 
         int out = 0; float best = 1e9f, bdx = 0, bdy = 0;
         for (int i = 0; i < n && out < 64; i++) {
-            uintptr_t p = R<uintptr_t>(list + i * 4);   // 4 bytes on 32-bit
+            uintptr_t p = R<uintptr_t>(list + i * 4);
             if (!p || p == local) continue;
             int team = R<int>(p + O_TEAM);
             int hp   = R<int>(p + O_HEALTH);
@@ -135,15 +146,11 @@ int main(int argc, char** argv) {
         g_out->aimDx = bdx;
         g_out->aimDy = bdy;
 
-        // --- on-screen debug values ---
         g_out->dbgBase  = (unsigned)base;
         g_out->dbgMgr   = (unsigned)mgr;
         g_out->dbgLocal = (unsigned)local;
         g_out->dbgN     = n;
         g_out->dbgOut   = out;
-
-        if (++tick % 180 == 0)
-            LOG("base=%p mgr=%p n=%d local=%p out=%d", (void*)base, (void*)mgr, n, (void*)local, out);
 
         usleep(8000);
     }
