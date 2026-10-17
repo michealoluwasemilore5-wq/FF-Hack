@@ -36,7 +36,6 @@ static bool rd(uintptr_t a, void* o, size_t n) {
 }
 template<class T> static T R(uintptr_t a) { T v{}; rd(a, &v, sizeof(T)); return v; }
 
-// try both Free Fire packages
 static const char* PKGS[] = { "com.dts.freefiremax", "com.dts.freefireth" };
 
 static int findPid() {
@@ -93,7 +92,9 @@ int main(int argc, char** argv) {
     g_out = (EspData*)mmap(nullptr, sizeof(EspData), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
     if (g_out == MAP_FAILED) return 3;
 
-    g_out->magic = 0xAAAA;   // stage 1: helper is running
+    int sw = 720, sh = 1600;   // Hot 12i resolution
+
+    g_out->magic = 0xAAAA;     // stage 1: helper is running
 
     for (;;) {
         if (g_pid <= 0) {
