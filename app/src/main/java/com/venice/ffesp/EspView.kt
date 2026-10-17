@@ -15,16 +15,13 @@ import java.nio.channels.FileChannel
 class EspView(context: Context) : View(context) {
 
     private val box = Paint().apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 4f
-        color = Color.GREEN
-        isAntiAlias = true
+        style = Paint.Style.STROKE; strokeWidth = 4f
+        color = Color.GREEN; isAntiAlias = true
     }
     private val label = Paint().apply {
-        color = Color.YELLOW
-        textSize = 34f
-        isAntiAlias = true
+        color = Color.YELLOW; textSize = 34f; isAntiAlias = true
     }
+    private val dot = Paint().apply { isAntiAlias = true }
 
     private val mm: ByteBuffer
 
@@ -38,9 +35,7 @@ class EspView(context: Context) : View(context) {
         val helper = context.applicationInfo.nativeLibraryDir + "/libmemhelper.so"
         try {
             Runtime.getRuntime().exec(arrayOf("su", "-c", "$helper ${f.absolutePath}"))
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     private val loop = object : Choreographer.FrameCallback {
@@ -49,7 +44,6 @@ class EspView(context: Context) : View(context) {
             Choreographer.getInstance().postFrameCallback(this)
         }
     }
-
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         Choreographer.getInstance().postFrameCallback(loop)
@@ -57,6 +51,21 @@ class EspView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+
+        val magic = mm.getInt(4)
+        val resolved = mm.getInt(16)
+        dot.color = when {
+            magic != 0x1234 -> Color.RED
+            resolved == 0   -> Color.YELLOW
+            else            -> Color.GREEN
+        }
+        canvas.drawCircle(60f, 60f, 24f, dot)
+
+        val dbg = "base=%08x mgr=%08x n=%d local=%08x out=%d".format(
+            mm.getInt(DBG_BASE), mm.getInt(DBG_MGR),
+            mm.getInt(DBG_N), mm.getInt(DBG_LOCAL), mm.getInt(DBG_OUT))
+        canvas.drawText(dbg, 30f, 140f, label)
+
         val count = mm.getInt(0).coerceIn(0, 64)
         var off = HEADER
         for (i in 0 until count) {
@@ -67,7 +76,6 @@ class EspView(context: Context) : View(context) {
             val valid = mm.getInt(off + 20)
             off += STRIDE
             if (valid == 0) continue
-
             val h = (2000f / (dist + 1f)).coerceIn(60f, 400f)
             canvas.drawRect(x - 30f, y - h, x + 30f, y, box)
             canvas.drawLine(x, y - h, x, y - h - 22f, box)
@@ -78,6 +86,11 @@ class EspView(context: Context) : View(context) {
     companion object {
         const val HEADER = 20
         const val STRIDE = 24
-        const val SHM_SIZE = HEADER + 64 * STRIDE
+        const val DBG_BASE = 1556
+        const val DBG_MGR = 1560
+        const val DBG_LOCAL = 1564
+        const val DBG_N = 1568
+        const val DBG_OUT = 1572
+        const val SHM_SIZE = 1600
     }
 }
