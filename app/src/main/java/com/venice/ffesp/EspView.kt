@@ -32,9 +32,13 @@ class EspView(context: Context) : View(context) {
         mm = raf.channel.map(FileChannel.MapMode.READ_WRITE, 0, SHM_SIZE.toLong())
         mm.order(ByteOrder.LITTLE_ENDIAN)
 
+        // copy helper to /data/local/tmp (SELinux-safe) and run as root
         val helper = context.applicationInfo.nativeLibraryDir + "/libmemhelper.so"
+        val cmd = "cp $helper /data/local/tmp/ffhelper; " +
+                  "chmod 755 /data/local/tmp/ffhelper; " +
+                  "/data/local/tmp/ffhelper ${f.absolutePath}"
         try {
-            Runtime.getRuntime().exec(arrayOf("su", "-c", "$helper ${f.absolutePath}"))
+            Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
         } catch (e: Exception) { e.printStackTrace() }
     }
 
@@ -53,17 +57,17 @@ class EspView(context: Context) : View(context) {
         super.onDraw(canvas)
 
         val magic = mm.getInt(4)
-        val resolved = mm.getInt(16)
-        dot.color = when {
-            magic != 0x1234 -> Color.RED
-            resolved == 0   -> Color.YELLOW
-            else            -> Color.GREEN
+        dot.color = when (magic) {
+            0      -> Color.RED                 // helper not running
+            0xAAAA -> Color.rgb(255,165,0)      // helper running, no game
+            0xBBBB -> Color.BLUE                // game found, libil2cpp not found
+            else   -> Color.GREEN               // all found
         }
         canvas.drawCircle(60f, 60f, 24f, dot)
 
-        val dbg = "base=%08x mgr=%08x n=%d local=%08x out=%d".format(
-            mm.getInt(DBG_BASE), mm.getInt(DBG_MGR),
-            mm.getInt(DBG_N), mm.getInt(DBG_LOCAL), mm.getInt(DBG_OUT))
+        val dbg = "st=%x pid=%d base=%08x mgr=%08x n=%d".format(
+            magic, mm.getInt(DBG_PID), mm.getInt(DBG_BASE),
+            mm.getInt(DBG_MGR), mm.getInt(DBG_N))
         canvas.drawText(dbg, 30f, 140f, label)
 
         val count = mm.getInt(0).coerceIn(0, 64)
@@ -91,6 +95,7 @@ class EspView(context: Context) : View(context) {
         const val DBG_LOCAL = 1564
         const val DBG_N = 1568
         const val DBG_OUT = 1572
+        const val DBG_PID = 1576
         const val SHM_SIZE = 1600
     }
 }
