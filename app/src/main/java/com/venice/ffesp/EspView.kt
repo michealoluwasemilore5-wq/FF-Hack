@@ -19,11 +19,12 @@ class EspView(context: Context) : View(context) {
         color = Color.GREEN; isAntiAlias = true
     }
     private val label = Paint().apply {
-        color = Color.YELLOW; textSize = 34f; isAntiAlias = true
+        color = Color.YELLOW; textSize = 30f; isAntiAlias = true
     }
     private val dot = Paint().apply { isAntiAlias = true }
 
     private val mm: ByteBuffer
+    private val logFile = File(context.filesDir, "su.log")
 
     init {
         val f = File(context.filesDir, "ffesp.shm")
@@ -32,10 +33,14 @@ class EspView(context: Context) : View(context) {
         mm = raf.channel.map(FileChannel.MapMode.READ_WRITE, 0, SHM_SIZE.toLong())
         mm.order(ByteOrder.LITTLE_ENDIAN)
 
-        // copy helper to /data/local/tmp (SELinux-safe) and run as root
         val helper = context.applicationInfo.nativeLibraryDir + "/libmemhelper.so"
-        val cmd = "cp $helper /data/local/tmp/ffhelper; " +
+        val cmd = "exec > ${logFile.absolutePath} 2>&1; " +
+                  "echo ROOTCHECK; id; " +
+                  "echo HELPER=$helper; " +
+                  "ls -l $helper; " +
+                  "cp $helper /data/local/tmp/ffhelper; " +
                   "chmod 755 /data/local/tmp/ffhelper; " +
+                  "echo RUNNING; " +
                   "/data/local/tmp/ffhelper ${f.absolutePath}"
         try {
             Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
@@ -58,17 +63,26 @@ class EspView(context: Context) : View(context) {
 
         val magic = mm.getInt(4)
         dot.color = when (magic) {
-            0      -> Color.RED                 // helper not running
-            0xAAAA -> Color.rgb(255,165,0)      // helper running, no game
-            0xBBBB -> Color.BLUE                // game found, libil2cpp not found
-            else   -> Color.GREEN               // all found
+            0      -> Color.RED
+            0xAAAA -> Color.rgb(255,165,0)
+            0xBBBB -> Color.BLUE
+            else   -> Color.GREEN
         }
         canvas.drawCircle(60f, 60f, 24f, dot)
 
-        val dbg = "st=%x pid=%d base=%08x mgr=%08x n=%d".format(
-            magic, mm.getInt(DBG_PID), mm.getInt(DBG_BASE),
-            mm.getInt(DBG_MGR), mm.getInt(DBG_N))
-        canvas.drawText(dbg, 30f, 140f, label)
+        val dbg = "st=%x pid=%d base=%08x n=%d".format(
+            magic, mm.getInt(DBG_PID), mm.getInt(DBG_BASE), mm.getInt(DBG_N))
+        canvas.drawText(dbg, 30f, 130f, label)
+
+        // show su log
+        val log = try {
+            if (logFile.exists()) logFile.readText().take(300) else "NO LOG - su never ran"
+        } catch (e: Exception) { "log err" }
+        var ly = 180f
+        for (line in log.split("\n")) {
+            canvas.drawText(line, 30f, ly, label)
+            ly += 38f
+        }
 
         val count = mm.getInt(0).coerceIn(0, 64)
         var off = HEADER
